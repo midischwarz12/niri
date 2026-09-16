@@ -15,7 +15,10 @@ use super::monitor::InsertPosition;
 use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
 use super::workspace::{InteractiveResize, ResolvedSize};
-use super::{ConfigureIntent, HitType, InteractiveResizeData, LayoutElement, Options, RemovedTile};
+use super::{
+    ConfigureIntent, HitType, InputRegion, InteractiveResizeData, LayoutElement, Options,
+    RemovedTile,
+};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
 use crate::layout::{RenderLayer, SizingMode};
@@ -3012,7 +3015,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
     }
 
-    pub fn window_under(&self, pos: Point<f64, Logical>) -> Option<(&W, HitType)> {
+    pub fn window_under(
+        &self,
+        pos: Point<f64, Logical>,
+        input_region: InputRegion,
+    ) -> Option<(&W, HitType)> {
         // This matches self.tiles_with_render_positions().
         let scale = self.scale;
         for (col, col_pos) in self.columns_with_render_positions() {
@@ -3042,7 +3049,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 // Round to physical pixels.
                 let tile_pos = tile_pos.to_physical_precise_round(scale).to_logical(scale);
 
-                if let Some(rv) = HitType::hit_tile(tile, tile_pos, pos) {
+                if let Some(rv) = HitType::hit_tile(tile, tile_pos, pos, input_region) {
                     return Some(rv);
                 }
             }

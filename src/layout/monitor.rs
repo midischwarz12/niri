@@ -17,7 +17,7 @@ use super::workspace::{
     compute_working_area, OutputId, Workspace, WorkspaceAddWindowTarget, WorkspaceId,
     WorkspaceRenderElement,
 };
-use super::{compute_overview_zoom, ActivateWindow, HitType, LayoutElement, Options};
+use super::{compute_overview_zoom, ActivateWindow, HitType, InputRegion, LayoutElement, Options};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
 use crate::layout::RenderLayer;
@@ -1573,12 +1573,12 @@ impl<W: LayoutElement> Monitor<W> {
         if self.overview_progress.is_some() {
             let zoom = self.overview_zoom();
             let pos_within_workspace = (pos_within_output - geo.loc).downscale(zoom);
-            let (win, hit) = ws.window_under(pos_within_workspace)?;
+            let (win, hit) = ws.window_under(pos_within_workspace, InputRegion::Honor)?;
             // During the overview animation, we cannot do input hits because we cannot really
             // represent scaled windows properly.
             Some((win, hit.to_activate()))
         } else {
-            let (win, hit) = ws.window_under(pos_within_output - geo.loc)?;
+            let (win, hit) = ws.window_under(pos_within_output - geo.loc, InputRegion::Honor)?;
             Some((win, hit.offset_win_pos(geo.loc)))
         }
     }

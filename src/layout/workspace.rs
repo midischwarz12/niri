@@ -24,8 +24,8 @@ use super::scrolling::{
 use super::shadow::Shadow;
 use super::tile::{Tile, TileRenderSnapshot};
 use super::{
-    ActivateWindow, HitType, InsertPosition, InteractiveResizeData, LayoutElement, Options,
-    RemovedTile, SizeFrac,
+    ActivateWindow, HitType, InputRegion, InsertPosition, InteractiveResizeData, LayoutElement,
+    Options, RemovedTile, SizeFrac,
 };
 use crate::animation::Clock;
 use crate::layout::RenderLayer;
@@ -1789,19 +1789,23 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling.start_open_animation(id) || self.floating.start_open_animation(id)
     }
 
-    pub fn window_under(&self, pos: Point<f64, Logical>) -> Option<(&W, HitType)> {
+    pub fn window_under(
+        &self,
+        pos: Point<f64, Logical>,
+        input_region: InputRegion,
+    ) -> Option<(&W, HitType)> {
         // This logic is consistent with tiles_with_render_positions().
         if self.is_floating_visible() {
             if let Some(rv) = self
                 .floating
                 .tiles_with_render_positions()
-                .find_map(|(tile, tile_pos)| HitType::hit_tile(tile, tile_pos, pos))
+                .find_map(|(tile, tile_pos)| HitType::hit_tile(tile, tile_pos, pos, input_region))
             {
                 return Some(rv);
             }
         }
 
-        self.scrolling.window_under(pos)
+        self.scrolling.window_under(pos, input_region)
     }
 
     pub fn resize_edges_under(&self, pos: Point<f64, Logical>) -> Option<ResizeEdge> {
@@ -1815,7 +1819,7 @@ impl<W: LayoutElement> Workspace<W> {
 
                 let pos_within_tile = pos - tile_pos;
 
-                if tile.hit(pos_within_tile).is_some() {
+                if tile.hit(pos_within_tile, InputRegion::Honor).is_some() {
                     let size = tile.tile_size().to_f64();
 
                     let mut edges = ResizeEdge::empty();

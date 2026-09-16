@@ -532,6 +532,15 @@ pub enum AddWindowTarget<'a, W: LayoutElement> {
     NextTo(&'a W::Id),
 }
 
+/// How to use a client's input region when hit testing a tile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputRegion {
+    /// Respect input region holes and return input hits where events can be forwarded.
+    Honor,
+    /// Use the entire tile geometry for activation, without forwarding input events.
+    Ignore,
+}
+
 /// Type of the window hit from `window_under()`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HitType {
@@ -540,9 +549,9 @@ pub enum HitType {
         /// Position of the window's buffer.
         win_pos: Point<f64, Logical>,
     },
-    /// The hit can activate a window, but it is not in the input region so cannot send events.
+    /// The hit can activate a window, but cannot be used for sending input events.
     ///
-    /// For example, this could be clicking on a tile border outside the window.
+    /// For example, this could be clicking on a tile border or a transformed overview window.
     Activate {
         /// Whether the hit was on the tab indicator.
         is_tab_indicator: bool,
@@ -645,9 +654,10 @@ impl HitType {
         tile: &Tile<W>,
         tile_pos: Point<f64, Logical>,
         point: Point<f64, Logical>,
+        input_region: InputRegion,
     ) -> Option<(&W, Self)> {
         let pos_within_tile = point - tile_pos;
-        tile.hit(pos_within_tile)
+        tile.hit(pos_within_tile, input_region)
             .map(|hit| (tile.window(), hit.offset_win_pos(tile_pos)))
     }
 
@@ -2354,14 +2364,18 @@ impl<W: LayoutElement> Layout<W> {
                     let zoom = self.overview_zoom();
                     let tile_pos = move_.tile_render_location(zoom);
                     let pos_within_tile = (pos_within_output - tile_pos).downscale(zoom);
-                    // During the overview animation, we cannot do input hits because we cannot
-                    // really represent scaled windows properly.
-                    let (win, hit) =
-                        HitType::hit_tile(&move_.tile, Point::from((0., 0.)), pos_within_tile)?;
+                    // Input cannot be forwarded to transformed overview windows, but activation
+                    // hit testing still respects their input regions.
+                    let (win, hit) = HitType::hit_tile(
+                        &move_.tile,
+                        Point::from((0., 0.)),
+                        pos_within_tile,
+                        InputRegion::Honor,
+                    )?;
                     Some((win, hit.to_activate()))
                 } else {
                     let tile_pos = move_.tile_render_location(1.);
-                    HitType::hit_tile(&move_.tile, tile_pos, pos_within_output)
+                    HitType::hit_tile(&move_.tile, tile_pos, pos_within_output, InputRegion::Honor)
                 }
             } else {
                 None

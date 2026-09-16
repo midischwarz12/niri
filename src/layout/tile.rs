@@ -12,8 +12,8 @@ use super::focus_ring::{FocusRing, FocusRingRenderElement};
 use super::opening_window::{OpenAnimation, OpeningWindowRenderElement};
 use super::shadow::Shadow;
 use super::{
-    HitType, LayoutElement, LayoutElementRenderElement, LayoutElementRenderSnapshot, Options,
-    SizeFrac, RESIZE_ANIMATION_THRESHOLD,
+    HitType, InputRegion, LayoutElement, LayoutElementRenderElement, LayoutElementRenderSnapshot,
+    Options, SizeFrac, RESIZE_ANIMATION_THRESHOLD,
 };
 use crate::animation::{Animation, Clock};
 use crate::layout::SizingMode;
@@ -914,19 +914,28 @@ impl<W: LayoutElement> Tile<W> {
         self.window.is_in_input_region(point)
     }
 
+    fn is_in_window_geometry(&self, mut point: Point<f64, Logical>) -> bool {
+        point -= self.window_loc().to_f64();
+        Rectangle::from_size(self.window_size()).contains(point)
+    }
+
     fn is_in_activation_region(&self, point: Point<f64, Logical>) -> bool {
         let activation_region = Rectangle::from_size(self.tile_size());
         activation_region.contains(point)
     }
 
-    pub fn hit(&self, point: Point<f64, Logical>) -> Option<HitType> {
+    pub fn hit(&self, point: Point<f64, Logical>, input_region: InputRegion) -> Option<HitType> {
         let offset = self.bob_offset();
         let point = point - offset;
 
-        if self.is_in_input_region(point) {
+        if input_region == InputRegion::Honor && self.is_in_input_region(point) {
             let win_pos = self.buf_loc() + offset;
             Some(HitType::Input { win_pos })
-        } else if self.is_in_activation_region(point) {
+        // Keep compositor decorations activatable, but let holes in the client's input region
+        // pass through to surfaces below.
+        } else if self.is_in_activation_region(point)
+            && (input_region == InputRegion::Ignore || !self.is_in_window_geometry(point))
+        {
             Some(HitType::Activate {
                 is_tab_indicator: false,
             })
