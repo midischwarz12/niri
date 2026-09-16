@@ -914,6 +914,11 @@ impl<W: LayoutElement> Tile<W> {
         self.window.is_in_input_region(point)
     }
 
+    fn is_in_window_geometry(&self, mut point: Point<f64, Logical>) -> bool {
+        point -= self.window_loc().to_f64();
+        Rectangle::from_size(self.window_size()).contains(point)
+    }
+
     fn is_in_activation_region(&self, point: Point<f64, Logical>) -> bool {
         let activation_region = Rectangle::from_size(self.tile_size());
         activation_region.contains(point)
@@ -926,13 +931,25 @@ impl<W: LayoutElement> Tile<W> {
         if self.is_in_input_region(point) {
             let win_pos = self.buf_loc() + offset;
             Some(HitType::Input { win_pos })
-        } else if self.is_in_activation_region(point) {
+        // Keep compositor decorations activatable, but let holes in the client's input region
+        // pass through to surfaces below.
+        } else if self.is_in_activation_region(point) && !self.is_in_window_geometry(point) {
             Some(HitType::Activate {
                 is_tab_indicator: false,
             })
         } else {
             None
         }
+    }
+
+    // Overview windows are transformed and cannot receive forwarded input, so hit-test the
+    // compositor-owned activation area without consulting the client's input region.
+    pub fn hit_for_activation(&self, point: Point<f64, Logical>) -> Option<HitType> {
+        let point = point - self.bob_offset();
+        self.is_in_activation_region(point)
+            .then_some(HitType::Activate {
+                is_tab_indicator: false,
+            })
     }
 
     pub fn request_tile_size(

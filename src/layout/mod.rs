@@ -651,13 +651,14 @@ impl HitType {
             .map(|hit| (tile.window(), hit.offset_win_pos(tile_pos)))
     }
 
-    pub fn to_activate(self) -> Self {
-        match self {
-            HitType::Input { .. } => HitType::Activate {
-                is_tab_indicator: false,
-            },
-            HitType::Activate { .. } => self,
-        }
+    pub fn hit_tile_for_activation<W: LayoutElement>(
+        tile: &Tile<W>,
+        tile_pos: Point<f64, Logical>,
+        point: Point<f64, Logical>,
+    ) -> Option<(&W, Self)> {
+        let pos_within_tile = point - tile_pos;
+        tile.hit_for_activation(pos_within_tile)
+            .map(|hit| (tile.window(), hit))
     }
 }
 
@@ -2336,9 +2337,11 @@ impl<W: LayoutElement> Layout<W> {
                     let pos_within_tile = (pos_within_output - tile_pos).downscale(zoom);
                     // During the overview animation, we cannot do input hits because we cannot
                     // really represent scaled windows properly.
-                    let (win, hit) =
-                        HitType::hit_tile(&move_.tile, Point::from((0., 0.)), pos_within_tile)?;
-                    Some((win, hit.to_activate()))
+                    HitType::hit_tile_for_activation(
+                        &move_.tile,
+                        Point::from((0., 0.)),
+                        pos_within_tile,
+                    )
                 } else {
                     let tile_pos = move_.tile_render_location(1.);
                     HitType::hit_tile(&move_.tile, tile_pos, pos_within_output)
