@@ -924,6 +924,18 @@ impl<W: LayoutElement> Tile<W> {
         activation_region.contains(point)
     }
 
+    /// Whether the border or focus ring can draw a solid background behind the window.
+    fn draws_background_behind_window(&self) -> bool {
+        if self.border.is_off() && self.focus_ring.is_off() {
+            return false;
+        }
+
+        self.window
+            .rules()
+            .draw_border_with_background
+            .unwrap_or_else(|| !self.window.has_ssd())
+    }
+
     pub fn hit(&self, point: Point<f64, Logical>) -> Option<HitType> {
         let offset = self.bob_offset();
         let point = point - offset;
@@ -931,9 +943,11 @@ impl<W: LayoutElement> Tile<W> {
         if self.is_in_input_region(point) {
             let win_pos = self.buf_loc() + offset;
             Some(HitType::Input { win_pos })
-        // Keep compositor decorations activatable, but let holes in the client's input region
-        // pass through to surfaces below.
-        } else if self.is_in_activation_region(point) && !self.is_in_window_geometry(point) {
+        // Keep compositor decorations and their visible background activatable, but let holes in
+        // the client's input region pass through to surfaces below.
+        } else if self.is_in_activation_region(point)
+            && (!self.is_in_window_geometry(point) || self.draws_background_behind_window())
+        {
             Some(HitType::Activate {
                 is_tab_indicator: false,
             })

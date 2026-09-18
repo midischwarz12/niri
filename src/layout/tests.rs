@@ -2195,6 +2195,10 @@ fn input_region_holes_pass_through_floating_windows() {
     for scale in [1., 1.25] {
         let floating_window = |id| TestWindowParams {
             is_floating: true,
+            rules: Some(ResolvedWindowRules {
+                draw_border_with_background: Some(false),
+                ..Default::default()
+            }),
             ..TestWindowParams::new(id)
         };
         let ops = [
@@ -2294,6 +2298,10 @@ fn floating_input_region_holes_reach_tiled_windows() {
         Op::AddWindow {
             params: TestWindowParams {
                 is_floating: true,
+                rules: Some(ResolvedWindowRules {
+                    draw_border_with_background: Some(false),
+                    ..Default::default()
+                }),
                 ..TestWindowParams::new(2)
             },
         },
@@ -2346,6 +2354,10 @@ fn input_region_holes_without_windows_below_hit_nothing() {
         Op::AddWindow {
             params: TestWindowParams {
                 is_floating: true,
+                rules: Some(ResolvedWindowRules {
+                    draw_border_with_background: Some(false),
+                    ..Default::default()
+                }),
                 ..TestWindowParams::new(1)
             },
         },
@@ -2365,6 +2377,36 @@ fn input_region_holes_without_windows_below_hit_nothing() {
     let (window, hit) = workspace
         .window_under(tile_pos + Point::from((2., 50.)))
         .unwrap();
+    assert_eq!(window.id(), &1);
+    assert!(matches!(hit, HitType::Activate { .. }));
+}
+
+#[test]
+fn input_region_holes_activate_visible_decoration_background() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams {
+                is_floating: true,
+                rules: Some(ResolvedWindowRules {
+                    draw_border_with_background: Some(true),
+                    ..Default::default()
+                }),
+                ..TestWindowParams::new(1)
+            },
+        },
+    ];
+    let mut options = Options::default();
+    options.layout.border.off = false;
+    let layout = check_ops_with_options(options, ops);
+
+    let workspace = layout.active_workspace().unwrap();
+    let (tile, tile_pos, _) = workspace.tiles_with_render_positions().next().unwrap();
+    let window_pos = tile_pos + tile.window_loc();
+    let (window, hit) = workspace
+        .window_under(window_pos + Point::from((50., 50.)))
+        .unwrap();
+
     assert_eq!(window.id(), &1);
     assert!(matches!(hit, HitType::Activate { .. }));
 }
