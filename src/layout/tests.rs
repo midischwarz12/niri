@@ -2276,11 +2276,13 @@ fn input_region_holes_pass_through_floating_windows() {
 
         let output = layout.outputs().next().unwrap().clone();
         layout.toggle_overview();
-        for pos in [input_pos, hole_pos] {
-            let (window, hit) = layout.window_under(&output, pos).unwrap();
-            assert_eq!(window.id(), &2);
-            assert!(matches!(hit, HitType::Activate { .. }));
-        }
+        let (window, hit) = layout.window_under(&output, input_pos).unwrap();
+        assert_eq!(window.id(), &2);
+        assert!(matches!(hit, HitType::Activate { .. }));
+
+        let (window, hit) = layout.window_under(&output, hole_pos).unwrap();
+        assert_eq!(window.id(), &1);
+        assert!(matches!(hit, HitType::Activate { .. }));
     }
 }
 
@@ -2412,18 +2414,28 @@ fn input_region_holes_activate_visible_decoration_background() {
 }
 
 #[test]
-fn moved_window_input_region_holes_remain_activatable_in_overview() {
+fn moved_window_input_region_holes_pass_through_in_overview() {
     let ops = [
         Op::AddOutput(1),
         Op::AddWindow {
             params: TestWindowParams {
                 is_floating: true,
+                rules: Some(ResolvedWindowRules {
+                    draw_border_with_background: Some(false),
+                    ..Default::default()
+                }),
                 ..TestWindowParams::new(1)
             },
         },
     ];
     let mut layout = check_ops(ops);
     let output = layout.outputs().next().unwrap().clone();
+    layout
+        .windows()
+        .find(|(_, window)| window.id() == &1)
+        .unwrap()
+        .1
+        .set_input_regions([Rectangle::new((0, 0).into(), (20, 20).into())]);
 
     assert!(layout.interactive_move_begin(1, &output, Point::from((50., 50.))));
     assert!(layout.interactive_move_update(
@@ -2442,12 +2454,19 @@ fn moved_window_input_region_holes_remain_activatable_in_overview() {
     let InteractiveMoveState::Moving(move_) = layout.interactive_move.as_ref().unwrap() else {
         unreachable!();
     };
-    let pos = move_.tile_render_location(zoom)
-        + (move_.tile.window_loc().to_f64() + Point::from((50., 50.))).upscale(zoom);
+    let tile_pos = move_.tile_render_location(zoom);
+    let window_pos = move_.tile.window_loc().to_f64();
+    let input_pos = tile_pos + (window_pos + Point::from((10., 10.))).upscale(zoom);
+    let hole_pos = tile_pos + (window_pos + Point::from((50., 50.))).upscale(zoom);
 
-    let (window, hit) = layout.interactive_moved_window_under(&output, pos).unwrap();
+    let (window, hit) = layout
+        .interactive_moved_window_under(&output, input_pos)
+        .unwrap();
     assert_eq!(window.id(), &1);
     assert!(matches!(hit, HitType::Activate { .. }));
+    assert!(layout
+        .interactive_moved_window_under(&output, hole_pos)
+        .is_none());
 }
 
 #[test]

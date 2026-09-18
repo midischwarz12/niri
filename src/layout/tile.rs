@@ -956,14 +956,13 @@ impl<W: LayoutElement> Tile<W> {
         }
     }
 
-    // Overview windows are transformed and cannot receive forwarded input, so hit-test the
-    // compositor-owned activation area without consulting the client's input region.
+    // Overview windows are transformed and cannot receive forwarded input. Still respect the
+    // client's input region when deciding which window to activate, then turn any accepted hit
+    // into an activation-only hit.
     pub fn hit_for_activation(&self, point: Point<f64, Logical>) -> Option<HitType> {
-        let point = point - self.bob_offset();
-        self.is_in_activation_region(point)
-            .then_some(HitType::Activate {
-                is_tab_indicator: false,
-            })
+        self.hit(point).map(|_| HitType::Activate {
+            is_tab_indicator: false,
+        })
     }
 
     pub fn request_tile_size(

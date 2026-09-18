@@ -2335,8 +2335,8 @@ impl<W: LayoutElement> Layout<W> {
                     let zoom = self.overview_zoom();
                     let tile_pos = move_.tile_render_location(zoom);
                     let pos_within_tile = (pos_within_output - tile_pos).downscale(zoom);
-                    // During the overview animation, we cannot do input hits because we cannot
-                    // really represent scaled windows properly.
+                    // Input cannot be forwarded to transformed overview windows, but activation
+                    // hit testing still respects their input regions.
                     HitType::hit_tile_for_activation(
                         &move_.tile,
                         Point::from((0., 0.)),
