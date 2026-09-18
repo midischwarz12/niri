@@ -3019,9 +3019,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         &self,
         pos: Point<f64, Logical>,
         input_region: InputRegion,
+        focus_ring: bool,
     ) -> Option<(&W, HitType)> {
         // This matches self.tiles_with_render_positions().
         let scale = self.scale;
+        let active = self.active_window().map(|window| window.id());
         for (col, col_pos) in self.columns_with_render_positions() {
             // Hit the tab indicator.
             if col.display_mode == ColumnDisplay::Tabbed && col.sizing_mode().is_normal() {
@@ -3049,7 +3051,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 // Round to physical pixels.
                 let tile_pos = tile_pos.to_physical_precise_round(scale).to_logical(scale);
 
-                if let Some(rv) = HitType::hit_tile(tile, tile_pos, pos, input_region) {
+                let focus_ring = focus_ring && active == Some(tile.window().id());
+                if let Some(rv) = HitType::hit_tile(tile, tile_pos, pos, input_region, focus_ring) {
                     return Some(rv);
                 }
             }

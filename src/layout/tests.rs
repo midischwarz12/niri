@@ -2375,13 +2375,13 @@ fn input_region_holes() {
             let output = layout.outputs().next().unwrap().clone();
 
             assert!(top_tile
-                .hit((-1., -1.).into(), InputRegion::Ignore)
+                .hit((-1., -1.).into(), InputRegion::Ignore, true)
                 .is_none());
             for pos in [input_pos, hole_pos, border_pos] {
                 let hit = layout
                     .active_workspace()
                     .unwrap()
-                    .window_under(pos, InputRegion::Ignore)
+                    .window_under(pos, InputRegion::Ignore, true)
                     .map(|(window, hit)| (*window.id(), hit));
                 assert_eq!(
                     hit,
@@ -2419,10 +2419,78 @@ fn input_region_holes() {
             assert!(layout
                 .active_workspace()
                 .unwrap()
-                .window_under(hole_pos, InputRegion::Honor)
+                .window_under(hole_pos, InputRegion::Honor, true)
                 .is_none());
         }
     }
+}
+
+#[test]
+fn tiled_focus_ring_background_hit_testing() {
+    let mut layout = check_ops([
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ]);
+    let output = layout.outputs().next().unwrap().clone();
+    for (_, window) in layout.windows() {
+        window.set_input_regions([Rectangle::from_size((20, 20).into())]);
+    }
+    let hole_pos = |layout: &Layout<TestWindow>| {
+        let (tile, pos, _) = layout
+            .active_workspace()
+            .unwrap()
+            .tiles_with_render_positions()
+            .find(|(tile, _, _)| tile.window().id() == &1)
+            .unwrap();
+        pos + tile.window_loc() + Point::from((50., 50.))
+    };
+
+    // Without a border, only the active tile has a decoration background.
+    for active in [1, 2] {
+        layout.activate_window(&active);
+        let pos = hole_pos(&layout);
+        let hit = layout
+            .window_under(&output, pos)
+            .map(|(window, _)| *window.id());
+        assert_eq!(hit, (active == 1).then_some(1));
+        assert_eq!(
+            layout.resize_edges_under(&output, pos).is_some(),
+            active == 1
+        );
+    }
+
+    // Moving the other tile suppresses the remaining workspace's focus ring.
+    let start = Point::from((50., 50.));
+    let delta = Point::from((INTERACTIVE_MOVE_START_THRESHOLD.sqrt(), 0.));
+    assert!(layout.interactive_move_begin(2, &output, start));
+    assert!(layout.interactive_move_update(&2, delta, output.clone(), start + delta,));
+    assert!(layout.interactive_move_is_moving_above_output(&output));
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .active_window()
+            .unwrap()
+            .id(),
+        &1
+    );
+    let pos = hole_pos(&layout);
+    assert!(layout.window_under(&output, pos).is_none());
+    assert!(layout.resize_edges_under(&output, pos).is_none());
+
+    // The moving tile still has its own focus ring background.
+    let InteractiveMoveState::Moving(move_) = layout.interactive_move.as_ref().unwrap() else {
+        unreachable!();
+    };
+    let pos = move_.tile_render_location(1.) + move_.tile.window_loc() + Point::from((50., 50.));
+    let (window, hit) = layout.interactive_moved_window_under(&output, pos).unwrap();
+    assert_eq!(window.id(), &2);
+    assert!(matches!(hit, HitType::Activate { .. }));
 }
 
 #[test]

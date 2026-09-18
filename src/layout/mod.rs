@@ -655,9 +655,10 @@ impl HitType {
         tile_pos: Point<f64, Logical>,
         point: Point<f64, Logical>,
         input_region: InputRegion,
+        focus_ring: bool,
     ) -> Option<(&W, Self)> {
         let pos_within_tile = point - tile_pos;
-        tile.hit(pos_within_tile, input_region)
+        tile.hit(pos_within_tile, input_region, focus_ring)
             .map(|hit| (tile.window(), hit.offset_win_pos(tile_pos)))
     }
 
@@ -2371,11 +2372,18 @@ impl<W: LayoutElement> Layout<W> {
                         Point::from((0., 0.)),
                         pos_within_tile,
                         InputRegion::Honor,
+                        true,
                     )?;
                     Some((win, hit.to_activate()))
                 } else {
                     let tile_pos = move_.tile_render_location(1.);
-                    HitType::hit_tile(&move_.tile, tile_pos, pos_within_output, InputRegion::Honor)
+                    HitType::hit_tile(
+                        &move_.tile,
+                        tile_pos,
+                        pos_within_output,
+                        InputRegion::Honor,
+                        true,
+                    )
                 }
             } else {
                 None
@@ -2392,7 +2400,8 @@ impl<W: LayoutElement> Layout<W> {
         pos_within_output: Point<f64, Logical>,
     ) -> Option<(&W, HitType)> {
         let mon = self.monitor_for_output(output)?;
-        mon.window_under(pos_within_output)
+        let focus_ring = !self.interactive_move_is_moving_above_output(output);
+        mon.window_under(pos_within_output, focus_ring)
     }
 
     pub fn resize_edges_under(
@@ -2401,7 +2410,8 @@ impl<W: LayoutElement> Layout<W> {
         pos_within_output: Point<f64, Logical>,
     ) -> Option<ResizeEdge> {
         let mon = self.monitor_for_output(output)?;
-        mon.resize_edges_under(pos_within_output)
+        let focus_ring = !self.interactive_move_is_moving_above_output(output);
+        mon.resize_edges_under(pos_within_output, focus_ring)
     }
 
     pub fn workspace_under(
@@ -2657,6 +2667,7 @@ impl<W: LayoutElement> Layout<W> {
 
         // Scroll the view if needed.
         if let Some((output, pos_within_output, is_scrolling)) = dnd_scroll {
+            let focus_ring = !self.interactive_move_is_moving_above_output(&output);
             if let Some(mon) = self.monitor_for_output_mut(&output) {
                 let mut scrolled = false;
 
@@ -2682,7 +2693,7 @@ impl<W: LayoutElement> Layout<W> {
                     }
                 } else if is_dnd {
                     let target = mon
-                        .window_under(pos_within_output)
+                        .window_under(pos_within_output, focus_ring)
                         .map(|(win, _)| DndHoldTarget::Window(win.id().clone()))
                         .or_else(|| {
                             mon.workspace_under_narrow(pos_within_output)
