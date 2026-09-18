@@ -74,6 +74,66 @@ window-rule {{
     }
 }
 
+#[test]
+fn left_button_starts_resize_on_compositor_decoration() {
+    for (decoration, pointer_x) in [("border", 102), ("focus-ring", 98)] {
+        let config = format!(
+            r#"
+layout {{
+    focus-ring {{ {}; width 4; }}
+    border {{ {}; width 4; }}
+}}
+
+window-rule {{
+    match app-id="^input-region-test$"
+    open-floating true
+    default-floating-position x=100 y=100
+    draw-border-with-background false
+}}
+"#,
+            if decoration == "focus-ring" {
+                "on"
+            } else {
+                "off"
+            },
+            if decoration == "border" { "on" } else { "off" },
+        );
+        let config = niri_config::Config::parse_mem(&config).unwrap();
+        let mut f = Fixture::with_config(config);
+        f.add_output(1, (800, 600));
+        let client_id = f.add_client();
+        let _window = map_window(&mut f, client_id, true);
+
+        let pointer = {
+            let client = f.client(client_id);
+            client
+                .state
+                .virtual_pointer_manager
+                .as_ref()
+                .unwrap()
+                .create_virtual_pointer(None, &client.qh, ())
+        };
+        pointer.motion_absolute(0, pointer_x, 150, 800, 600);
+        pointer.button(1, 0x110, wl_pointer::ButtonState::Pressed);
+        pointer.frame();
+        f.double_roundtrip(client_id);
+
+        assert!(
+            f.niri()
+                .layout
+                .focus()
+                .unwrap()
+                .interactive_resize_data()
+                .is_some(),
+            "left click did not start a resize from the {decoration}"
+        );
+
+        pointer.button(2, 0x110, wl_pointer::ButtonState::Released);
+        pointer.frame();
+        f.double_roundtrip(client_id);
+    }
+}
+
 fn map_window(f: &mut Fixture, client_id: client::ClientId, input_hole: bool) -> WlSurface {
     let window = f.client(client_id).create_window();
     let surface = window.surface.clone();

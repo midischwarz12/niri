@@ -1830,6 +1830,20 @@ impl<W: LayoutElement> Workspace<W> {
             })
     }
 
+    pub fn decoration_resize_edges_under(&self, pos: Point<f64, Logical>) -> Option<ResizeEdge> {
+        let active_id = self.active_window().map(|window| window.id().clone());
+
+        self.tiles_with_render_positions()
+            .find_map(|(tile, tile_pos, visible)| {
+                if !visible {
+                    return None;
+                }
+
+                let focus_ring_visible = active_id.as_ref() == Some(tile.window().id());
+                tile.decoration_resize_edges(pos - tile_pos, focus_ring_visible)
+            })
+    }
+
     pub fn descendants_added(&mut self, id: &W::Id) -> bool {
         self.floating.descendants_added(id)
     }

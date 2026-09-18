@@ -32,7 +32,7 @@ use crate::render_helpers::xray::{Xray, XrayPos};
 use crate::render_helpers::{RenderCtx, RenderTarget};
 use crate::utils::transaction::Transaction;
 use crate::utils::{
-    baba_is_float_offset, round_logical_in_physical, round_logical_in_physical_max1,
+    baba_is_float_offset, round_logical_in_physical, round_logical_in_physical_max1, ResizeEdge,
 };
 
 /// Toplevel window with decorations.
@@ -920,7 +920,16 @@ impl<W: LayoutElement> Tile<W> {
     }
 
     fn is_in_activation_region(&self, point: Point<f64, Logical>) -> bool {
-        let activation_region = Rectangle::from_size(self.tile_size());
+        let focus_ring_width =
+            if self.border.is_off() && !self.focus_ring.is_off() && self.expanded_progress() < 1. {
+                self.focus_ring.width()
+            } else {
+                0.
+            };
+        let activation_region = Rectangle::new(
+            Point::from((-focus_ring_width, -focus_ring_width)),
+            self.tile_size() + Size::from((focus_ring_width, focus_ring_width)).upscale(2.),
+        );
         activation_region.contains(point)
     }
 
@@ -963,6 +972,47 @@ impl<W: LayoutElement> Tile<W> {
         self.hit(point).map(|_| HitType::Activate {
             is_tab_indicator: false,
         })
+    }
+
+    /// Returns resize edges when a point is on compositor-drawn decoration outside the window.
+    pub fn decoration_resize_edges(
+        &self,
+        point: Point<f64, Logical>,
+        focus_ring_visible: bool,
+    ) -> Option<ResizeEdge> {
+        let point = point - self.bob_offset();
+        let focus_ring_width =
+            if focus_ring_visible && !self.focus_ring.is_off() && self.expanded_progress() < 1. {
+                self.focus_ring.width()
+            } else {
+                0.
+            };
+        let decoration_region = Rectangle::new(
+            Point::from((-focus_ring_width, -focus_ring_width)),
+            self.tile_size() + Size::from((focus_ring_width, focus_ring_width)).upscale(2.),
+        );
+        if !decoration_region.contains(point) {
+            return None;
+        }
+
+        let window_region = Rectangle::new(self.window_loc(), self.window_size());
+        if window_region.contains(point) {
+            return None;
+        }
+
+        let mut edges = ResizeEdge::empty();
+        if point.x < window_region.loc.x {
+            edges |= ResizeEdge::LEFT;
+        } else if point.x >= window_region.loc.x + window_region.size.w {
+            edges |= ResizeEdge::RIGHT;
+        }
+        if point.y < window_region.loc.y {
+            edges |= ResizeEdge::TOP;
+        } else if point.y >= window_region.loc.y + window_region.size.h {
+            edges |= ResizeEdge::BOTTOM;
+        }
+
+        (!edges.is_empty()).then_some(edges)
     }
 
     pub fn request_tile_size(

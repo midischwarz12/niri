@@ -2384,6 +2384,95 @@ fn input_region_holes_without_windows_below_hit_nothing() {
 }
 
 #[test]
+fn focus_ring_around_input_region_hole_is_activatable_and_resizable() {
+    for scale in [1., 1.25] {
+        let ops = [
+            Op::AddScaledOutput {
+                id: 1,
+                scale,
+                layout_config: None,
+            },
+            Op::AddWindow {
+                params: TestWindowParams {
+                    is_floating: true,
+                    rules: Some(ResolvedWindowRules {
+                        draw_border_with_background: Some(false),
+                        ..Default::default()
+                    }),
+                    ..TestWindowParams::new(1)
+                },
+            },
+        ];
+        let mut options = Options::default();
+        options.layout.border.off = true;
+        options.layout.focus_ring.off = false;
+        options.layout.focus_ring.width = 4.;
+        let layout = check_ops_with_options(options, ops);
+
+        let workspace = layout.active_workspace().unwrap();
+        let (tile, tile_pos, _) = workspace.tiles_with_render_positions().next().unwrap();
+        let ring_pos = tile_pos + Point::from((-2., tile.tile_size().h / 2.));
+
+        let (window, hit) = workspace.window_under(ring_pos).unwrap();
+        assert_eq!(window.id(), &1);
+        assert!(matches!(hit, HitType::Activate { .. }));
+        assert_eq!(
+            workspace.resize_edges_under(ring_pos),
+            Some(ResizeEdge::LEFT)
+        );
+        assert_eq!(
+            workspace.decoration_resize_edges_under(ring_pos),
+            Some(ResizeEdge::LEFT)
+        );
+        assert_eq!(
+            workspace.decoration_resize_edges_under(
+                tile_pos + Point::from((tile.tile_size().w / 2., tile.tile_size().h / 2.))
+            ),
+            None
+        );
+    }
+}
+
+#[test]
+fn compositor_border_exposes_exact_decoration_resize_edges() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams {
+                is_floating: true,
+                rules: Some(ResolvedWindowRules {
+                    draw_border_with_background: Some(false),
+                    ..Default::default()
+                }),
+                ..TestWindowParams::new(1)
+            },
+        },
+    ];
+    let mut options = Options::default();
+    options.layout.border.off = false;
+    options.layout.border.width = 4.;
+    options.layout.focus_ring.off = true;
+    let layout = check_ops_with_options(options, ops);
+
+    let workspace = layout.active_workspace().unwrap();
+    let (tile, tile_pos, _) = workspace.tiles_with_render_positions().next().unwrap();
+    let size = tile.tile_size();
+
+    assert_eq!(
+        workspace.decoration_resize_edges_under(tile_pos + Point::from((2., size.h / 2.))),
+        Some(ResizeEdge::LEFT)
+    );
+    assert_eq!(
+        workspace.decoration_resize_edges_under(tile_pos + Point::from((2., 2.))),
+        Some(ResizeEdge::TOP_LEFT)
+    );
+    assert_eq!(
+        workspace.decoration_resize_edges_under(tile_pos + Point::from((size.w / 2., size.h / 2.))),
+        None
+    );
+}
+
+#[test]
 fn input_region_holes_activate_visible_decoration_background() {
     let ops = [
         Op::AddOutput(1),

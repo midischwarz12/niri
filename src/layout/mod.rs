@@ -2373,6 +2373,15 @@ impl<W: LayoutElement> Layout<W> {
         mon.resize_edges_under(pos_within_output)
     }
 
+    pub fn decoration_resize_edges_under(
+        &self,
+        output: &Output,
+        pos_within_output: Point<f64, Logical>,
+    ) -> Option<ResizeEdge> {
+        let mon = self.monitor_for_output(output)?;
+        mon.decoration_resize_edges_under(pos_within_output)
+    }
+
     pub fn workspace_under(
         &self,
         extended_bounds: bool,
