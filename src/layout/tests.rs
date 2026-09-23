@@ -2374,6 +2374,26 @@ fn input_region_holes() {
             let border_pos = top_pos + Point::from((2., 50.));
             let output = layout.outputs().next().unwrap().clone();
 
+            let size = top_tile.tile_size();
+            for (pos, edges) in [
+                (Point::from((2., 50.)), ResizeEdge::LEFT),
+                (Point::from((size.w - 2., 50.)), ResizeEdge::RIGHT),
+                (Point::from((50., 2.)), ResizeEdge::TOP),
+                (Point::from((50., size.h - 2.)), ResizeEdge::BOTTOM),
+                (Point::from((2., 2.)), ResizeEdge::TOP_LEFT),
+                (
+                    Point::from((size.w - 2., size.h - 2.)),
+                    ResizeEdge::BOTTOM_RIGHT,
+                ),
+            ] {
+                let hit = layout.window_under(&output, top_pos + pos);
+                assert_eq!(
+                    hit.map(|(window, hit)| (*window.id(), hit)),
+                    Some((2, HitType::ResizeBorder { edges })),
+                    "floating={bottom_is_floating}, scale={scale}, pos={pos:?}"
+                );
+            }
+
             assert!(top_tile
                 .hit((-1., -1.).into(), InputRegion::Ignore, true)
                 .is_none());
@@ -2404,7 +2424,10 @@ fn input_region_holes() {
                     (border_pos, 2, true),
                 ] {
                     let hit = layout.window_under(&output, pos).map(|(window, hit)| {
-                        (*window.id(), matches!(hit, HitType::Activate { .. }))
+                        (
+                            *window.id(),
+                            matches!(hit, HitType::Activate { .. } | HitType::ResizeBorder { .. }),
+                        )
                     });
                     assert_eq!(
                         hit,
@@ -2456,8 +2479,16 @@ fn tiled_focus_ring_background_hit_testing() {
         let pos = hole_pos(&layout);
         let hit = layout
             .window_under(&output, pos)
-            .map(|(window, _)| *window.id());
-        assert_eq!(hit, (active == 1).then_some(1));
+            .map(|(window, hit)| (*window.id(), hit));
+        assert_eq!(
+            hit,
+            (active == 1).then_some((
+                1,
+                HitType::Activate {
+                    is_tab_indicator: false
+                }
+            ))
+        );
         assert_eq!(
             layout.resize_edges_under(&output, pos).is_some(),
             active == 1

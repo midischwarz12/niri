@@ -549,9 +549,12 @@ pub enum HitType {
         /// Position of the window's buffer.
         win_pos: Point<f64, Logical>,
     },
+    /// A visible compositor border that can start an interactive resize.
+    ResizeBorder { edges: ResizeEdge },
     /// The hit can activate a window, but cannot be used for sending input events.
     ///
-    /// For example, this could be clicking on a tile border or a transformed overview window.
+    /// For example, this could be clicking a focus-ring background or a transformed overview
+    /// window.
     Activate {
         /// Whether the hit was on the tab indicator.
         is_tab_indicator: bool,
@@ -645,7 +648,7 @@ impl HitType {
     pub fn offset_win_pos(mut self, offset: Point<f64, Logical>) -> Self {
         match &mut self {
             HitType::Input { win_pos } => *win_pos += offset,
-            HitType::Activate { .. } => (),
+            HitType::ResizeBorder { .. } | HitType::Activate { .. } => (),
         }
         self
     }
@@ -664,7 +667,7 @@ impl HitType {
 
     pub fn to_activate(self) -> Self {
         match self {
-            HitType::Input { .. } => HitType::Activate {
+            HitType::Input { .. } | HitType::ResizeBorder { .. } => HitType::Activate {
                 is_tab_indicator: false,
             },
             HitType::Activate { .. } => self,

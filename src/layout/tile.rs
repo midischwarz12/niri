@@ -32,7 +32,7 @@ use crate::render_helpers::xray::{Xray, XrayPos};
 use crate::render_helpers::{RenderCtx, RenderTarget};
 use crate::utils::transaction::Transaction;
 use crate::utils::{
-    baba_is_float_offset, round_logical_in_physical, round_logical_in_physical_max1,
+    baba_is_float_offset, round_logical_in_physical, round_logical_in_physical_max1, ResizeEdge,
 };
 
 /// Toplevel window with decorations.
@@ -924,6 +924,31 @@ impl<W: LayoutElement> Tile<W> {
         activation_region.contains(point)
     }
 
+    fn border_resize_edges(&self, point: Point<f64, Logical>) -> Option<ResizeEdge> {
+        if self.effective_border_width().is_none()
+            || self.visual_border_width().is_none()
+            || !self.is_in_activation_region(point)
+        {
+            return None;
+        }
+
+        let loc = self.window_loc();
+        let size = self.window_size();
+        let mut edges = ResizeEdge::empty();
+        if point.x < loc.x {
+            edges |= ResizeEdge::LEFT;
+        } else if point.x >= loc.x + size.w {
+            edges |= ResizeEdge::RIGHT;
+        }
+        if point.y < loc.y {
+            edges |= ResizeEdge::TOP;
+        } else if point.y >= loc.y + size.h {
+            edges |= ResizeEdge::BOTTOM;
+        }
+
+        (!edges.is_empty()).then_some(edges)
+    }
+
     /// Whether a visible border or focus ring draws a background behind the window.
     fn draws_background_behind_window(&self, focus_ring: bool) -> bool {
         // Match the decoration visibility in render_inner().
@@ -957,6 +982,11 @@ impl<W: LayoutElement> Tile<W> {
                 || !self.is_in_window_geometry(point)
                 || self.draws_background_behind_window(focus_ring))
         {
+            if input_region == InputRegion::Honor {
+                if let Some(edges) = self.border_resize_edges(point) {
+                    return Some(HitType::ResizeBorder { edges });
+                }
+            }
             Some(HitType::Activate {
                 is_tab_indicator: false,
             })
